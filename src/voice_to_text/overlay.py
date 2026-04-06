@@ -3,6 +3,7 @@
 import queue
 import sys
 import tkinter as tk
+from PIL import Image, ImageDraw, ImageTk
 from . import config
 
 if sys.platform == "darwin":
@@ -10,8 +11,8 @@ if sys.platform == "darwin":
 else:
     from .platform import overlay_win as _platform
 
-_NUM_SEGMENTS = 20
-_SEGMENT_GAP = 1
+_NUM_SEGMENTS = 12
+_SEGMENT_GAP = 2
 _PILL_PAD = 2
 
 
@@ -38,42 +39,41 @@ class Overlay:
         else:
             return "#FF3300"
 
-    def _draw_pill_bg(self):
-        self._canvas.delete("pill")
+    def _render_pill(self, border_alpha=255):
+        """Render anti-aliased pill outline via Pillow (4x supersampling)."""
         w = config.OVERLAY_WIDTH
         h = config.OVERLAY_HEIGHT
-        r = h // 2
+        scale = 4
+        sw, sh = w * scale, h * scale
+        bw = 2 * scale
 
-        self._canvas.create_arc(0, 0, h, h, start=90, extent=180,
-                                fill="#555555", outline="#555555", tags="pill")
-        self._canvas.create_rectangle(r, 0, w - r, h,
-                                      fill="#555555", outline="#555555", tags="pill")
-        self._canvas.create_arc(w - h, 0, w, h, start=-90, extent=180,
-                                fill="#555555", outline="#555555", tags="pill")
+        img = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
 
-        self._canvas.create_arc(1, 1, h - 1, h - 1, start=90, extent=180,
-                                fill="#222222", outline="#222222", tags="pill")
-        self._canvas.create_rectangle(r, 1, w - r, h - 1,
-                                      fill="#222222", outline="#222222", tags="pill")
-        self._canvas.create_arc(w - h + 1, 1, w - 1, h - 1, start=-90, extent=180,
-                                fill="#222222", outline="#222222", tags="pill")
+        # White border pill
+        draw.rounded_rectangle([0, 0, sw - 1, sh - 1], radius=sh // 2,
+                               fill=(255, 255, 255, border_alpha))
+        # Transparent inner (cut out fill)
+        draw.rounded_rectangle([bw, bw, sw - 1 - bw, sh - 1 - bw],
+                               radius=(sh - 2 * bw) // 2,
+                               fill=(0, 0, 0, 0))
+
+        img = img.resize((w, h), Image.LANCZOS)
+        return img
+
+    def _draw_pill_bg(self, border_alpha=255):
+        self._canvas.delete("pill")
+        self._pill_img = ImageTk.PhotoImage(self._render_pill(border_alpha))
+        self._canvas.create_image(0, 0, anchor="nw", image=self._pill_img, tags="pill")
 
     def _vu_area(self):
         w = config.OVERLAY_WIDTH
         h = config.OVERLAY_HEIGHT
         r = h // 2
-        return r + _PILL_PAD, _PILL_PAD + 1, w - r - _PILL_PAD, h - _PILL_PAD - 1
+        return r, 3, w - r, h - 3
 
     def _draw_vu_idle(self):
         self._canvas.delete("vu")
-        x1, y1, x2, y2 = self._vu_area()
-        vu_w = x2 - x1
-        seg_w = (vu_w - (_NUM_SEGMENTS - 1) * _SEGMENT_GAP) / _NUM_SEGMENTS
-        for i in range(_NUM_SEGMENTS):
-            sx1 = x1 + i * (seg_w + _SEGMENT_GAP)
-            sx2 = sx1 + seg_w
-            self._canvas.create_rectangle(sx1, y1, sx2, y2,
-                                          fill="#3A3A3A", outline="", tags="vu")
 
     def _draw_vu_level(self, level):
         self._canvas.delete("vu")
@@ -136,7 +136,7 @@ class Overlay:
         )
         self._canvas.pack()
 
-        self._draw_pill_bg()
+        self._draw_pill_bg(border_alpha=80)
         self._draw_vu_idle()
 
         screen_w = self._root.winfo_screenwidth()
@@ -146,12 +146,6 @@ class Overlay:
         self._root.geometry(f"{w}x{h}+{x}+{y}")
 
         self._hwnd = _platform.setup_window(self._root)
-
-        alpha = config.OVERLAY_IDLE_ALPHA
-        if self._hwnd:
-            _platform.set_alpha(self._hwnd, alpha)
-        else:
-            self._root.attributes("-alpha", alpha)
 
         self._poll_queue()
 
@@ -173,31 +167,23 @@ class Overlay:
 
     def _apply_state(self, state: str):
         self._state = state
-        states = {
-            "idle": (config.COLOR_IDLE, config.OVERLAY_IDLE_ALPHA),
-            "recording": (config.COLOR_RECORDING, config.OVERLAY_ACTIVE_ALPHA),
-            "transcribing": (config.COLOR_TRANSCRIBING, config.OVERLAY_ACTIVE_ALPHA),
-            "correcting": (config.COLOR_TRANSCRIBING, config.OVERLAY_ACTIVE_ALPHA),
-            "done": (config.COLOR_DONE, config.OVERLAY_ACTIVE_ALPHA),
-            "loading": (config.COLOR_IDLE, config.OVERLAY_IDLE_ALPHA),
-            "ready": (config.COLOR_IDLE, config.OVERLAY_IDLE_ALPHA),
-        }
-        color, alpha = states.get(state, (config.COLOR_IDLE, config.OVERLAY_IDLE_ALPHA))
-        self._set_alpha(alpha)
 
         if state == "recording":
             self._smoothed_level = 0.0
-            self._draw_pill_bg()
+            self._draw_pill_bg(border_alpha=255)
             self._animate_vu()
+        elif state in ("transcribing", "correcting"):
+            self._stop_animation()
+            self._draw_pill_bg(border_alpha=255)
+            self._draw_vu_full(config.COLOR_TRANSCRIBING)
+        elif state == "done":
+            self._stop_animation()
+            self._draw_pill_bg(border_alpha=255)
+            self._draw_vu_full(config.COLOR_DONE)
         else:
             self._stop_animation()
-            self._draw_pill_bg()
-            if state in ("transcribing", "correcting"):
-                self._draw_vu_full(config.COLOR_TRANSCRIBING)
-            elif state == "done":
-                self._draw_vu_full(config.COLOR_DONE)
-            else:
-                self._draw_vu_idle()
+            self._draw_pill_bg(border_alpha=80)
+            self._draw_vu_idle()
 
         if state == "done":
             self._root.after(config.OVERLAY_DONE_DURATION_MS, lambda: self._apply_state("idle"))
