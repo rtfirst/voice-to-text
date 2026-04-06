@@ -84,6 +84,9 @@ class VoiceToText:
         self._hotkey.stop()
         self._tray.stop()
         self._overlay.stop()
+        # Force exit after short delay to ensure cleanup
+        import threading, os
+        threading.Timer(1.0, lambda: os._exit(0)).start()
 
     def run(self):
         self._transcriber.load_model_async()
