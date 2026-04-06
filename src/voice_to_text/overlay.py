@@ -1,26 +1,18 @@
+"""VU meter overlay — pill-shaped widget at the bottom of the screen."""
+
 import queue
-import ctypes
-import ctypes.wintypes
+import sys
 import tkinter as tk
 from . import config
 
-
-# Win32 constants
-GWL_EXSTYLE = -20
-WS_EX_TOOLWINDOW = 0x00000080
-WS_EX_TOPMOST = 0x00000008
-LWA_ALPHA = 0x02
-HWND_TOPMOST = -1
-SWP_NOMOVE = 0x0002
-SWP_NOSIZE = 0x0001
-SWP_NOACTIVATE = 0x0010
-SWP_SHOWWINDOW = 0x0040
-
-user32 = ctypes.windll.user32
+if sys.platform == "darwin":
+    from .platform import overlay_mac as _platform
+else:
+    from .platform import overlay_win as _platform
 
 _NUM_SEGMENTS = 20
 _SEGMENT_GAP = 1
-_PILL_PAD = 2  # padding inside pill for VU segments
+_PILL_PAD = 2
 
 
 class Overlay:
@@ -32,6 +24,7 @@ class Overlay:
         self._level_fn = None
         self._animate_id = None
         self._smoothed_level = 0.0
+        self._hwnd = None
 
     def set_level_fn(self, fn):
         self._level_fn = fn
@@ -46,86 +39,66 @@ class Overlay:
             return "#FF3300"
 
     def _draw_pill_bg(self):
-        """Draw rounded pill background."""
         self._canvas.delete("pill")
         w = config.OVERLAY_WIDTH
         h = config.OVERLAY_HEIGHT
         r = h // 2
-        border_color = "#555555"
-        fill_color = "#222222"
 
-        # Outer border pill
         self._canvas.create_arc(0, 0, h, h, start=90, extent=180,
-                                fill=border_color, outline=border_color, tags="pill")
+                                fill="#555555", outline="#555555", tags="pill")
         self._canvas.create_rectangle(r, 0, w - r, h,
-                                      fill=border_color, outline=border_color, tags="pill")
+                                      fill="#555555", outline="#555555", tags="pill")
         self._canvas.create_arc(w - h, 0, w, h, start=-90, extent=180,
-                                fill=border_color, outline=border_color, tags="pill")
+                                fill="#555555", outline="#555555", tags="pill")
 
-        # Inner fill pill (inset 1px)
         self._canvas.create_arc(1, 1, h - 1, h - 1, start=90, extent=180,
-                                fill=fill_color, outline=fill_color, tags="pill")
+                                fill="#222222", outline="#222222", tags="pill")
         self._canvas.create_rectangle(r, 1, w - r, h - 1,
-                                      fill=fill_color, outline=fill_color, tags="pill")
+                                      fill="#222222", outline="#222222", tags="pill")
         self._canvas.create_arc(w - h + 1, 1, w - 1, h - 1, start=-90, extent=180,
-                                fill=fill_color, outline=fill_color, tags="pill")
+                                fill="#222222", outline="#222222", tags="pill")
 
     def _vu_area(self):
-        """Return (x1, y1, x2, y2) for the VU meter area inside the pill."""
         w = config.OVERLAY_WIDTH
         h = config.OVERLAY_HEIGHT
         r = h // 2
-        pad = _PILL_PAD
-        return r + pad, pad + 1, w - r - pad, h - pad - 1
+        return r + _PILL_PAD, _PILL_PAD + 1, w - r - _PILL_PAD, h - _PILL_PAD - 1
 
     def _draw_vu_idle(self):
         self._canvas.delete("vu")
         x1, y1, x2, y2 = self._vu_area()
         vu_w = x2 - x1
         seg_w = (vu_w - (_NUM_SEGMENTS - 1) * _SEGMENT_GAP) / _NUM_SEGMENTS
-
         for i in range(_NUM_SEGMENTS):
             sx1 = x1 + i * (seg_w + _SEGMENT_GAP)
             sx2 = sx1 + seg_w
-            self._canvas.create_rectangle(
-                sx1, y1, sx2, y2,
-                fill="#3A3A3A", outline="", tags="vu",
-            )
+            self._canvas.create_rectangle(sx1, y1, sx2, y2,
+                                          fill="#3A3A3A", outline="", tags="vu")
 
     def _draw_vu_level(self, level):
         self._canvas.delete("vu")
         x1, y1, x2, y2 = self._vu_area()
         vu_w = x2 - x1
         seg_w = (vu_w - (_NUM_SEGMENTS - 1) * _SEGMENT_GAP) / _NUM_SEGMENTS
-
         amp = min(level * 12, 1.0)
         lit = int(amp * _NUM_SEGMENTS)
-
         for i in range(_NUM_SEGMENTS):
             sx1 = x1 + i * (seg_w + _SEGMENT_GAP)
             sx2 = sx1 + seg_w
-            if i < lit:
-                fill = self._segment_color(i, _NUM_SEGMENTS)
-            else:
-                fill = "#2A2A2A"
-            self._canvas.create_rectangle(
-                sx1, y1, sx2, y2,
-                fill=fill, outline="", tags="vu",
-            )
+            fill = self._segment_color(i, _NUM_SEGMENTS) if i < lit else "#3A3A3A"
+            self._canvas.create_rectangle(sx1, y1, sx2, y2,
+                                          fill=fill, outline="", tags="vu")
 
     def _draw_vu_full(self, color):
         self._canvas.delete("vu")
         x1, y1, x2, y2 = self._vu_area()
         vu_w = x2 - x1
         seg_w = (vu_w - (_NUM_SEGMENTS - 1) * _SEGMENT_GAP) / _NUM_SEGMENTS
-
         for i in range(_NUM_SEGMENTS):
             sx1 = x1 + i * (seg_w + _SEGMENT_GAP)
             sx2 = sx1 + seg_w
-            self._canvas.create_rectangle(
-                sx1, y1, sx2, y2,
-                fill=color, outline="", tags="vu",
-            )
+            self._canvas.create_rectangle(sx1, y1, sx2, y2,
+                                          fill=color, outline="", tags="vu")
 
     def _animate_vu(self):
         if self._state == "recording" and self._level_fn:
@@ -154,8 +127,7 @@ class Overlay:
         self._root.overrideredirect(True)
         self._root.attributes("-topmost", True)
 
-        bg_color = "#010101"
-        self._root.attributes("-transparentcolor", bg_color)
+        bg_color = _platform.get_bg_color()
         self._root.configure(bg=bg_color)
 
         self._canvas = tk.Canvas(
@@ -173,32 +145,19 @@ class Overlay:
         y = screen_h - h - 60
         self._root.geometry(f"{w}x{h}+{x}+{y}")
 
-        self._root.update_idletasks()
-        self._root.deiconify()
-        self._root.update()
+        self._hwnd = _platform.setup_window(self._root)
 
-        try:
-            hwnd = user32.GetParent(self._root.winfo_id())
-            if not hwnd:
-                hwnd = self._root.winfo_id()
-            ex_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            ex_style |= WS_EX_TOOLWINDOW | WS_EX_TOPMOST
-            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style)
-            user32.SetWindowPos(
-                hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
-            )
-            idle_alpha = int(config.OVERLAY_IDLE_ALPHA * 255)
-            user32.SetLayeredWindowAttributes(hwnd, 0, idle_alpha, LWA_ALPHA)
-            self._hwnd = hwnd
-        except Exception:
-            self._hwnd = None
+        alpha = config.OVERLAY_IDLE_ALPHA
+        if self._hwnd:
+            _platform.set_alpha(self._hwnd, alpha)
+        else:
+            self._root.attributes("-alpha", alpha)
 
         self._poll_queue()
 
     def _set_alpha(self, alpha: float):
         if self._hwnd:
-            user32.SetLayeredWindowAttributes(self._hwnd, 0, int(alpha * 255), LWA_ALPHA)
+            _platform.set_alpha(self._hwnd, alpha)
         else:
             self._root.attributes("-alpha", alpha)
 

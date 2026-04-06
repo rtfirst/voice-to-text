@@ -52,8 +52,19 @@ HOTKEY_PRESETS = {
 # Default hotkey
 DEFAULT_HOTKEY = "Ctrl+Space"
 
-# Whisper configuration defaults
-WHISPER_DEVICE = "cuda"
+# Whisper device — auto-detect: CUDA > MPS (Apple Silicon) > CPU
+def _detect_device() -> str:
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+WHISPER_DEVICE = _detect_device()
 
 # Audio configuration
 SAMPLE_RATE = 16000

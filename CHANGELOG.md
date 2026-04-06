@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0] - 2026-04-06
+
+### Added
+- macOS support (Quartz event tap for hotkeys, pbcopy/osascript for paste)
+- Auto-detection of GPU device: CUDA (Windows), MPS (Apple Silicon), CPU fallback
+- macOS autostart via LaunchAgent plist
+- Platform abstraction layer (`platform/` module)
+
+### Changed
+- Restructured into `src/voice_to_text/` package with platform-specific modules
+- GPU device is now auto-detected instead of hardcoded to CUDA
+
 ## [1.0.0] - 2026-04-06
 
 ### Added

@@ -1,6 +1,8 @@
 # Voice-to-Text
 
-A Windows 11 background application for speech input via Push-to-Talk. Transcribes locally using OpenAI Whisper (CUDA) and optionally corrects text via the Anthropic API (Haiku). The transcribed text is automatically pasted into the active application — editor, browser, or terminal.
+A cross-platform background application for speech input via Push-to-Talk. Transcribes locally using OpenAI Whisper (GPU-accelerated) and optionally corrects text via the Anthropic API (Haiku). The transcribed text is automatically pasted into the active application — editor, browser, or terminal.
+
+Supports **Windows 11** and **macOS**.
 
 ## Features
 
@@ -8,16 +10,28 @@ A Windows 11 background application for speech input via Push-to-Talk. Transcrib
 - **Local transcription** — runs Whisper on your GPU, no cloud dependency for speech-to-text
 - **Optional AI correction** — fixes grammar and punctuation via Anthropic API
 - **Live VU meter** — pill-shaped overlay at the bottom of the screen reacts to your voice
-- **Terminal-aware paste** — auto-detects window type (Ctrl+V, Ctrl+Shift+V, or Shift+Insert)
+- **Smart paste** — auto-detects window type and uses the appropriate paste method
 - **Configurable via tray menu** — hotkey, model size, language, auto-correction
 - **Persistent settings** — saved to `settings.json`, survives restarts
+- **Cross-platform** — Windows (CUDA) and macOS (MPS / CPU)
 
 ## Requirements
 
-- Windows 11
-- Python 3.13+ with PyTorch (CUDA)
-- NVIDIA GPU (tested with RTX 3070, 8 GB VRAM)
-- Installed packages: `openai-whisper`, `anthropic`, `pystray`, `pywin32`, `Pillow`, `numpy`, `sounddevice`
+- Python 3.13+
+- [OpenAI Whisper](https://github.com/openai/whisper) with PyTorch
+
+### Windows
+- NVIDIA GPU with CUDA support (tested with RTX 3070, 8 GB VRAM)
+- PyTorch with CUDA
+- Packages: `pywin32`
+
+### macOS
+- Apple Silicon (MPS acceleration) or Intel (CPU fallback)
+- PyTorch with MPS support (macOS 12.3+)
+- Accessibility permissions required (System Settings → Privacy & Security → Accessibility)
+
+### Both platforms
+- `openai-whisper`, `anthropic`, `pystray`, `Pillow`, `numpy`, `sounddevice`
 
 ## Installation
 
@@ -26,6 +40,12 @@ pip install sounddevice
 ```
 
 All other dependencies should already be present (PyTorch, Whisper, Anthropic SDK, etc.).
+
+### macOS additional setup
+
+Grant Accessibility permissions to your terminal or Python to allow global hotkey detection and keystroke simulation:
+
+**System Settings → Privacy & Security → Accessibility** → add Terminal / iTerm2 / Python
 
 ### API Key
 
@@ -38,10 +58,10 @@ ANTHROPIC_API_KEY=sk-ant-...
 ## Usage
 
 ```bash
-# With console window (for debugging)
+# With console output (for debugging)
 python main.py
 
-# Without console window (for daily use)
+# Without console window (Windows only)
 pythonw main.py
 ```
 
@@ -56,7 +76,7 @@ pythonw main.py
 | State | Display |
 |-------|---------|
 | Idle | Dark segments, semi-transparent |
-| Recording | Live level: green, yellow, red |
+| Recording | Live level: green → yellow → red |
 | Transcribing | All segments yellow |
 | Done | All segments green (briefly) |
 
@@ -69,6 +89,16 @@ pythonw main.py
 
 Settings are saved to `settings.json` and persist across restarts.
 
+## GPU Acceleration
+
+The application auto-detects the best available compute device:
+
+| Platform | Device | Notes |
+|----------|--------|-------|
+| Windows + NVIDIA | CUDA | Best performance |
+| macOS Apple Silicon | MPS | Good performance on M1/M2/M3 |
+| Any | CPU | Fallback, slower |
+
 ## Autostart
 
 ```bash
@@ -79,35 +109,48 @@ python setup_autostart.py
 python setup_autostart.py --disable
 ```
 
+- **Windows**: adds a registry entry under `HKCU\...\Run`
+- **macOS**: creates a LaunchAgent plist in `~/Library/LaunchAgents/`
+
 ## Project Structure
 
 ```
 voice-to-text/
-  main.py                        Entry point (thin wrapper)
-  setup_autostart.py             Windows autostart management
+  main.py                                Entry point
+  setup_autostart.py                     Autostart management (Windows + macOS)
   requirements.txt
   src/
     voice_to_text/
-      __init__.py                Package marker
-      __main__.py                python -m voice_to_text support
-      app.py                     Main orchestration (VoiceToText class)
-      audio.py                   Microphone recording (sounddevice, 16kHz mono)
-      config.py                  Configuration and persistent settings
-      hotkey.py                  Push-to-Talk hotkey (GetAsyncKeyState polling)
-      overlay.py                 VU meter overlay with pill frame (tkinter)
-      paste.py                   Window-type detection and clipboard paste
-      transcriber.py             Whisper transcription + Anthropic API correction
-      tray.py                    System tray icon with settings menu (pystray)
+      __init__.py
+      __main__.py                        python -m voice_to_text
+      app.py                             Main orchestration
+      audio.py                           Microphone recording (sounddevice)
+      config.py                          Configuration + persistent settings
+      hotkey.py                          Hotkey dispatcher
+      overlay.py                         VU meter overlay (tkinter)
+      paste.py                           Paste dispatcher
+      transcriber.py                     Whisper + Anthropic API
+      tray.py                            System tray menu (pystray)
+      platform/
+        __init__.py                      Platform detection
+        hotkey_win.py                    Windows: GetAsyncKeyState polling
+        hotkey_mac.py                    macOS: Quartz event tap
+        paste_win.py                     Windows: win32 clipboard + SendInput
+        paste_mac.py                     macOS: pbcopy + osascript
+        overlay_win.py                   Windows: Win32 layered window
+        overlay_mac.py                   macOS: tkinter alpha
 ```
 
-## Paste Detection
+## Paste Detection (Windows)
 
-The tool detects the foreground window type and uses the appropriate paste method:
+On Windows, the tool detects the foreground window type:
 
-- **Standard apps** (editor, browser, IDE) — Ctrl+V
-- **Windows Terminal** — Ctrl+Shift+V
-- **mintty / Git Bash** — Shift+Insert
-- **Legacy cmd.exe** — Shift+Insert
+- **Standard apps** (editor, browser, IDE) → Ctrl+V
+- **Windows Terminal** → Ctrl+Shift+V
+- **mintty / Git Bash** → Shift+Insert
+- **Legacy cmd.exe** → Shift+Insert
+
+On macOS, Cmd+V is used universally.
 
 ## License
 
