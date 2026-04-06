@@ -2,7 +2,7 @@ import queue
 import ctypes
 import ctypes.wintypes
 import tkinter as tk
-import config
+from . import config
 
 
 # Win32 constants

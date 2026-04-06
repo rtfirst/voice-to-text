@@ -2,8 +2,11 @@ import os
 import json
 from pathlib import Path
 
-# Load .env file
-_env_path = Path(__file__).parent / ".env"
+# Project root is three levels up from this file (src/voice_to_text/config.py)
+_project_root = Path(__file__).parent.parent.parent
+
+# Load .env file from project root
+_env_path = _project_root / ".env"
 if _env_path.exists():
     for line in _env_path.read_text().strip().splitlines():
         line = line.strip()
@@ -90,8 +93,8 @@ WHISPER_LANGUAGES = {
     "English": "en",
 }
 
-# Persistent settings file
-_settings_path = Path(__file__).parent / "settings.json"
+# Persistent settings file in project root
+_settings_path = _project_root / "settings.json"
 
 
 def _load_settings() -> dict:

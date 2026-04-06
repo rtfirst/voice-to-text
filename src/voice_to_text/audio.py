@@ -1,7 +1,7 @@
 import threading
 import numpy as np
 import sounddevice as sd
-import config
+from . import config
 
 
 class AudioRecorder:

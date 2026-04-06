@@ -2,7 +2,7 @@ import threading
 import whisper
 import anthropic
 import numpy as np
-import config
+from . import config
 
 
 class Transcriber:

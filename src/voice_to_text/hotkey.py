@@ -1,7 +1,7 @@
 import ctypes
 import threading
 import time
-import config
+from . import config
 
 user32 = ctypes.windll.user32
 

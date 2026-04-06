@@ -1,7 +1,7 @@
 import threading
 from PIL import Image, ImageDraw
 import pystray
-import config
+from . import config
 
 
 class TrayIcon:
