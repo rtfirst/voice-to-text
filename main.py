@@ -29,6 +29,7 @@ class VoiceToText:
             on_model_change=self._on_model_change,
         )
         self._hotkey = PushToTalkHook(
+            settings=self._settings,
             on_start=self._on_recording_start,
             on_stop=self._on_recording_stop,
         )

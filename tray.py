@@ -43,6 +43,19 @@ class TrayIcon:
     def _is_auto_correct_on(self, item):
         return self._settings.auto_correct
 
+    def _select_hotkey(self, hotkey_name):
+        def handler(icon, item):
+            if hotkey_name != self._settings.hotkey:
+                self._settings.hotkey = hotkey_name
+                self._settings.save()
+                icon.update_menu()
+        return handler
+
+    def _is_current_hotkey(self, hotkey_name):
+        def check(item):
+            return self._settings.hotkey == hotkey_name
+        return check
+
     def _select_language(self, lang_name):
         def handler(icon, item):
             if lang_name != self._settings.language:
@@ -79,6 +92,17 @@ class TrayIcon:
                 )
             )
 
+        hotkey_items = []
+        for hk_name in config.HOTKEY_PRESETS:
+            hotkey_items.append(
+                pystray.MenuItem(
+                    hk_name,
+                    self._select_hotkey(hk_name),
+                    checked=self._is_current_hotkey(hk_name),
+                    radio=True,
+                )
+            )
+
         return pystray.Menu(
             pystray.MenuItem(
                 lambda _: f"Status: {self._status}",
@@ -86,6 +110,7 @@ class TrayIcon:
                 enabled=False,
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Hotkey", pystray.Menu(*hotkey_items)),
             pystray.MenuItem("Modell", pystray.Menu(*model_items)),
             pystray.MenuItem("Sprache", pystray.Menu(*lang_items)),
             pystray.MenuItem(

@@ -11,13 +11,43 @@ if _env_path.exists():
             key, _, value = line.partition("=")
             os.environ.setdefault(key.strip(), value.strip())
 
-# Virtual key codes
-VK_CONTROL = 0x11
-VK_SPACE = 0x20
+# Virtual key code mappings (name -> vk_code)
+VK_CODES = {
+    "Ctrl": 0x11,
+    "L-Ctrl": 0xA2,
+    "R-Ctrl": 0xA3,
+    "Shift": 0x10,
+    "L-Shift": 0xA0,
+    "R-Shift": 0xA1,
+    "Alt": 0x12,
+    "L-Alt": 0xA4,
+    "R-Alt": 0xA5,
+    "Win": 0x5B,
+    "Space": 0x20,
+    "F1": 0x70, "F2": 0x71, "F3": 0x72, "F4": 0x73,
+    "F5": 0x74, "F6": 0x75, "F7": 0x76, "F8": 0x77,
+    "F9": 0x78, "F10": 0x79, "F11": 0x7A, "F12": 0x7B,
+    "F13": 0x7C, "F14": 0x7D, "F15": 0x7E, "F16": 0x7F,
+    "CapsLock": 0x14,
+    "Tab": 0x09,
+    "Insert": 0x2D,
+    "Pause": 0x13,
+    "ScrollLock": 0x91,
+}
 
-# Hotkey configuration
-HOTKEY_MODIFIER = VK_CONTROL
-HOTKEY_KEY = VK_SPACE
+# Available hotkey combinations for the menu
+HOTKEY_PRESETS = {
+    "Ctrl+Space": ("Ctrl", "Space"),
+    "Ctrl+Shift+Space": ("Ctrl", "Space"),  # uses Shift as extra modifier
+    "Alt+Space": ("Alt", "Space"),
+    "F13": (None, "F13"),
+    "F14": (None, "F14"),
+    "Ctrl+F9": ("Ctrl", "F9"),
+    "Ctrl+F10": ("Ctrl", "F10"),
+}
+
+# Default hotkey
+DEFAULT_HOTKEY = "Ctrl+Space"
 
 # Whisper configuration defaults
 WHISPER_DEVICE = "cuda"
@@ -83,10 +113,24 @@ class Settings:
         self.whisper_model: str = data.get("whisper_model", "small")
         self.auto_correct: bool = data.get("auto_correct", True)
         self.language: str = data.get("language", "Deutsch")
+        self.hotkey: str = data.get("hotkey", DEFAULT_HOTKEY)
+
+    @property
+    def hotkey_modifier_vk(self) -> int | None:
+        preset = HOTKEY_PRESETS.get(self.hotkey)
+        if not preset or not preset[0]:
+            return None
+        return VK_CODES.get(preset[0])
+
+    @property
+    def hotkey_key_vk(self) -> int:
+        preset = HOTKEY_PRESETS.get(self.hotkey, (None, "Space"))
+        return VK_CODES.get(preset[1], 0x20)
 
     def save(self):
         _save_settings({
             "whisper_model": self.whisper_model,
             "auto_correct": self.auto_correct,
             "language": self.language,
+            "hotkey": self.hotkey,
         })
