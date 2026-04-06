@@ -39,21 +39,24 @@ pythonw main.py
 
 | Aktion | Beschreibung |
 |--------|-------------|
-| **Ctrl+Leertaste gedrückt halten** | Aufnahme starten (Overlay wird rot) |
-| **Ctrl+Leertaste loslassen** | Aufnahme stoppen → Transkription → Text wird eingefügt |
+| **Hotkey gedrückt halten** | Aufnahme starten (VU-Meter reagiert live) |
+| **Hotkey loslassen** | Aufnahme stoppen → Transkription → Text wird eingefügt |
 | **Tray-Icon Rechtsklick** | Einstellungen und Beenden |
 
-### Overlay-Farben
+### VU-Meter Overlay
 
-| Farbe | Bedeutung |
-|-------|-----------|
-| Grau (transparent) | Bereit |
-| Rot | Aufnahme läuft |
-| Gelb | Transkription/Korrektur läuft |
-| Grün (kurz) | Fertig, Text eingefügt |
+Das Overlay ist ein Pill-förmiges VU-Meter am unteren Bildschirmrand:
+
+| Zustand | Anzeige |
+|---------|---------|
+| Bereit | Dunkle Segmente, halbtransparent |
+| Aufnahme | Live-Pegel: Grün → Gelb → Rot |
+| Transkription | Alle Segmente gelb |
+| Fertig | Alle Segmente grün (kurz) |
 
 ## Einstellungen (Tray-Menü)
 
+- **Hotkey** — Ctrl+Space, Alt+Space, Ctrl+F9, F13 u.a.
 - **Modell** — Whisper-Modellgröße: tiny, small, medium, large-v3, turbo
 - **Sprache** — auto, Deutsch, English
 - **Auto-Korrektur** — Textkorrektur via Anthropic API an/aus
@@ -75,11 +78,11 @@ python setup_autostart.py --disable
 ```
 voice-to-text/
   main.py              Orchestrierung, Einstiegspunkt
-  hotkey.py             Ctrl+Space Push-to-Talk (GetAsyncKeyState)
+  hotkey.py             Push-to-Talk Hotkey (GetAsyncKeyState-Polling)
   audio.py              Mikrofon-Aufnahme (sounddevice, 16kHz mono)
   transcriber.py        Whisper-Transkription + Anthropic API Korrektur
-  paste.py              Clipboard + Paste (Ctrl+V / Ctrl+Shift+V / Shift+Insert)
-  overlay.py            Pill-Overlay am unteren Bildschirmrand (tkinter)
+  paste.py              Fenstertyp-Erkennung + Clipboard-Paste
+  overlay.py            VU-Meter Overlay mit Pill-Rahmen (tkinter)
   tray.py               System Tray Icon mit Einstellungsmenü (pystray)
   config.py             Konfiguration + persistente Settings
   setup_autostart.py    Windows-Autostart verwalten

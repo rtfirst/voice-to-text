@@ -92,6 +92,7 @@ class VoiceToText:
         self._transcriber.load_model_async()
         self._hotkey.start()
         self._tray.start()
+        self._overlay.set_level_fn(lambda: self._recorder.level)
         self._overlay.run()
 
 
